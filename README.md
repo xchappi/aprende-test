@@ -28,7 +28,7 @@ El Generador de Exámenes es una aplicación web innovadora diseñada para crear
 1. **Clonar el repositorio**
 
    ```bash
-   git clone https://github.com/xchappi/generador-examenes.git
+   git clone https://github.com/xchappi/aprende-test.git
    cd generador-examenes
    ```
 
