@@ -9,6 +9,28 @@ Contenido:
 
 ```
 
+Archivo: app\api\generate-exam\route.ts
+Contenido:
+```
+import { NextResponse } from 'next/server';
+import { generateExam } from '@/lib/claude-api';
+
+
+
+export async function POST(request: Request) {
+  const { comunidadAutonoma, nivel, curso, asignatura } = await request.json();
+  console.log({ comunidadAutonoma, nivel, curso, asignatura } );
+  
+  try {
+    const exam = await generateExam(comunidadAutonoma, nivel, curso, asignatura);
+    return NextResponse.json(exam);
+  } catch (error) {
+    console.error('Error al generar el examen:', error);
+    return NextResponse.json({ error: 'Error al generar el examen' }, { status: 500 });
+  }
+}
+```
+
 Archivo: app\globals.css
 Contenido:
 ```
@@ -153,7 +175,6 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { generateExam } from '@/lib/claude-api';
 
 export function ExamGenerator() {
   const [comunidadAutonoma, setComunidadAutonoma] = useState('');
@@ -166,8 +187,20 @@ export function ExamGenerator() {
   const handleGenerate = async () => {
     setLoading(true);
     try {
-      const generatedExam = await generateExam(comunidadAutonoma, nivel, curso, asignatura);
-      setExam(generatedExam);
+      const response = await fetch('/api/generate-exam', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ comunidadAutonoma, nivel, curso, asignatura }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error en la respuesta del servidor');
+      }
+      
+      const data = await response.json();
+      setExam(data.exam);
     } catch (error) {
       console.error('Error al generar el examen:', error);
       setExam('Hubo un error al generar el examen. Por favor, inténtalo de nuevo.');
@@ -4849,32 +4882,29 @@ export { useToast, toast };
 Archivo: lib\claude-api.ts
 Contenido:
 ```
-import axios from 'axios';
+import Anthropic from '@anthropic-ai/sdk';
+import { NextResponse } from 'next/server';
 
-const CLAUDE_API_URL = process.env.CLAUDE_API_URL;
+
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
-export async function generateExam(comunidadAutonoma: string, nivel: string, curso: string, asignatura: string): Promise<string> {
-  try {
-    const response = await axios.post(
-      CLAUDE_API_URL!,
-      {
-        prompt: `Genera un examen de ${asignatura} para ${curso} de ${nivel} en la comunidad autónoma de ${comunidadAutonoma}. El examen debe tener 10 preguntas variadas y adecuadas al nivel educativo. Incluye también las respuestas correctas al final.`,
-        max_tokens_to_sample: 1000,
-        temperature: 0.7,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': CLAUDE_API_KEY,
-        },
-      }
-    );
+const anthropic = new Anthropic({
+  apiKey: CLAUDE_API_KEY,
+});
 
-    return response.data.completion;
+export async function generateExam(comunidadAutonoma: string, nivel: string, curso: string, asignatura: string) {
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20240620",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: `Genera un examen de ${asignatura} para ${curso} de ${nivel} en la comunidad autónoma de ${comunidadAutonoma}. El examen debe tener 10 preguntas variadas y adecuadas al nivel educativo. Incluye también las respuestas correctas al final.` }],
+    });
+    console.log({content: response.content});
+    
+    return ({ exam: (<any>response.content[0]).text });
   } catch (error) {
     console.error('Error al llamar a la API de Claude:', error);
-    throw new Error('No se pudo generar el examen');
+    return NextResponse.json({ error: 'No se pudo generar el examen' }, { status: 500 });
   }
 }
 ```
@@ -4896,6 +4926,7 @@ Contenido:
 ```
 /// <reference types="next" />
 /// <reference types="next/image-types/global" />
+/// <reference types="next/navigation-types/compat/navigation" />
 
 // NOTE: This file should not be edited
 // see https://nextjs.org/docs/basic-features/typescript for more information.
@@ -4907,7 +4938,6 @@ Contenido:
 ```
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -4933,6 +4963,7 @@ Contenido:
     "context": "node ./scripts/recopilar_contexto.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.29.1",
     "@hookform/resolvers": "^3.9.0",
     "@next/swc-wasm-nodejs": "13.5.1",
     "@radix-ui/react-accordion": "^1.2.0",
@@ -4994,6 +5025,7 @@ Contenido:
     "zod": "^3.23.8"
   }
 }
+
 ```
 
 Archivo: postcss.config.js
@@ -5041,7 +5073,7 @@ El Generador de Exámenes es una aplicación web innovadora diseñada para crear
 1. **Clonar el repositorio**
 
    ```bash
-   git clone https://github.com/xchappi/generador-examenes.git
+   git clone https://github.com/xchappi/aprende-test.git
    cd generador-examenes
    ```
 

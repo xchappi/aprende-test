@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { generateExam } from '@/lib/claude-api';
 
 export function ExamGenerator() {
   const [comunidadAutonoma, setComunidadAutonoma] = useState('');
@@ -17,8 +16,20 @@ export function ExamGenerator() {
   const handleGenerate = async () => {
     setLoading(true);
     try {
-      const generatedExam = await generateExam(comunidadAutonoma, nivel, curso, asignatura);
-      setExam(generatedExam);
+      const response = await fetch('/api/generate-exam', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ comunidadAutonoma, nivel, curso, asignatura }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error en la respuesta del servidor');
+      }
+      
+      const data = await response.json();
+      setExam(data.exam);
     } catch (error) {
       console.error('Error al generar el examen:', error);
       setExam('Hubo un error al generar el examen. Por favor, inténtalo de nuevo.');
