@@ -8,8 +8,8 @@ export async function POST(request: Request) {
   console.log({ comunidadAutonoma, nivel, curso, asignatura } );
   
   try {
-    const exam = await generateExam(comunidadAutonoma, nivel, curso, asignatura);
-    return NextResponse.json(exam);
+    const response = await generateExam(comunidadAutonoma, nivel, curso, asignatura);
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error al generar el examen:', error);
     return NextResponse.json({ error: 'Error al generar el examen' }, { status: 500 });
