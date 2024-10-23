@@ -24,7 +24,7 @@ export interface ExamParams {
 export async function getRandomQuestions(params: ExamParams): Promise<Question[]> {
   const { comunidadAutonoma, nivel, curso, asignatura } = params;
   
-  const result = await client.execute(`
+  const result = await (<any>client).execute(`
     WITH filtered_questions AS (
       SELECT 
         q.id,
@@ -48,7 +48,7 @@ export async function getRandomQuestions(params: ExamParams): Promise<Question[]
     SELECT * FROM filtered_questions;
   `, [comunidadAutonoma, nivel, parseInt(curso), asignatura]);
 
-  return result.rows.map(row => ({
+  return result.rows.map((row: { id: number; question_text: string; correct_answer: string; difficulty: number; wrong_answers: string; }) => ({
     id: row.id as number,
     question_text: row.question_text as string,
     correct_answer: row.correct_answer as string,
