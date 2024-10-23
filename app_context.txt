@@ -12,21 +12,56 @@ Contenido:
 Archivo: app\api\generate-exam\route.ts
 Contenido:
 ```
+// app/api/generate-exam/route.ts
 import { NextResponse } from 'next/server';
-import { generateExam } from '@/lib/claude-api';
+import { getRandomQuestions } from '@/lib/db';
+import type { ExamParams } from '@/lib/db';
 
-
+interface ExamResponse {
+  title: string;
+  subject: string;
+  level: string;
+  grade: string;
+  region: string;
+  questions: {
+    number: number;
+    text: string;
+    options: string[];
+    correctAnswer: string;
+  }[];
+}
 
 export async function POST(request: Request) {
-  const { comunidadAutonoma, nivel, curso, asignatura } = await request.json();
-  console.log({ comunidadAutonoma, nivel, curso, asignatura } );
-  
   try {
-    const exam = await generateExam(comunidadAutonoma, nivel, curso, asignatura);
-    return NextResponse.json(exam);
+    const params: ExamParams = await request.json();
+    
+    // Obtener preguntas aleatorias de la base de datos
+    const questions = await getRandomQuestions(params);
+    
+    // Formar el examen como una estructura de datos
+    const exam: ExamResponse = {
+      title: `Examen de ${params.asignatura}`,
+      subject: params.asignatura,
+      level: params.nivel,
+      grade: params.curso,
+      region: params.comunidadAutonoma,
+      questions: questions.map((q, index) => ({
+        number: index + 1,
+        text: q.question_text,
+        // Mezclar las opciones de respuesta
+        options: [...q.wrong_answers, q.correct_answer]
+          .sort(() => Math.random() - 0.5),
+        correctAnswer: q.correct_answer
+      }))
+    };
+
+    return NextResponse.json({ exam });
   } catch (error) {
     console.error('Error al generar el examen:', error);
-    return NextResponse.json({ error: 'Error al generar el examen' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Error al generar el examen' }, 
+      { status: 500 }
+    );
   }
 }
 ```
@@ -4909,6 +4944,69 @@ export async function generateExam(comunidadAutonoma: string, nivel: string, cur
 }
 ```
 
+Archivo: lib\db.ts
+Contenido:
+```
+// lib/db.ts
+import { createClient } from '@libsql/client';
+
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL as string,
+  authToken: process.env.TURSO_AUTH_TOKEN as string,
+});
+
+export interface Question {
+  id: number;
+  question_text: string;
+  correct_answer: string;
+  wrong_answers: string[];
+  difficulty: number;
+}
+
+export interface ExamParams {
+  comunidadAutonoma: string;
+  nivel: string;
+  curso: string;
+  asignatura: string;
+}
+
+export async function getRandomQuestions(params: ExamParams): Promise<Question[]> {
+  const { comunidadAutonoma, nivel, curso, asignatura } = params;
+  
+  const result = await client.execute(`
+    WITH filtered_questions AS (
+      SELECT 
+        q.id,
+        q.question_text,
+        q.correct_answer,
+        q.difficulty,
+        GROUP_CONCAT(wa.answer_text) as wrong_answers
+      FROM questions q
+      LEFT JOIN wrong_answers wa ON wa.question_id = q.id
+      JOIN subjects s ON s.id = q.subject_id
+      JOIN education_levels el ON el.id = q.education_level_id
+      JOIN regions r ON r.id = q.region_id
+      WHERE r.name = ?
+      AND el.name = ?
+      AND el.grade = ?
+      AND s.name = ?
+      GROUP BY q.id
+      ORDER BY RANDOM()
+      LIMIT 10
+    )
+    SELECT * FROM filtered_questions;
+  `, [comunidadAutonoma, nivel, parseInt(curso), asignatura]);
+
+  return result.rows.map(row => ({
+    id: row.id as number,
+    question_text: row.question_text as string,
+    correct_answer: row.correct_answer as string,
+    difficulty: row.difficulty as number,
+    wrong_answers: row.wrong_answers ? (row.wrong_answers as string).split(',') : []
+  }));
+}
+```
+
 Archivo: lib\utils.ts
 Contenido:
 ```
@@ -4926,7 +5024,6 @@ Contenido:
 ```
 /// <reference types="next" />
 /// <reference types="next/image-types/global" />
-/// <reference types="next/navigation-types/compat/navigation" />
 
 // NOTE: This file should not be edited
 // see https://nextjs.org/docs/basic-features/typescript for more information.
@@ -4965,6 +5062,7 @@ Contenido:
   "dependencies": {
     "@anthropic-ai/sdk": "^0.29.1",
     "@hookform/resolvers": "^3.9.0",
+    "@libsql/client": "^0.14.0",
     "@next/swc-wasm-nodejs": "13.5.1",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
@@ -5023,6 +5121,9 @@ Contenido:
     "typescript": "5.2.2",
     "vaul": "^0.9.9",
     "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
 
@@ -5074,7 +5175,7 @@ El Generador de Exámenes es una aplicación web innovadora diseñada para crear
 
    ```bash
    git clone https://github.com/xchappi/aprende-test.git
-   cd generador-examenes
+   cd aprende-test
    ```
 
 2. **Instalar dependencias**
