@@ -74,6 +74,6 @@ El Generador de Exámenes es una aplicación web innovadora diseñada para crear
 ## 📞 Contacto
 
 
-Link del Proyecto: [https://github.com/xchappi/generador-examenes](https://github.com/xchappi/generador-examenes)
+Link del Proyecto: [https://github.com/xchappi/aprende-test](https://github.com/xchappi/aprende-test)
 
 ---
